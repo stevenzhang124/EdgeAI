@@ -16,6 +16,10 @@ from pedestrian_detection_ssdlite import api
 from reid import cam_reid
 from matplotlib import pyplot as plt
 
+# global variables to be used in the code for tracker
+max_age=5
+min_hits=1
+
 app = Flask(__name__)
 
 logging.basicConfig(
@@ -149,7 +153,7 @@ def assign_detections_to_trackers(trackers, detections, iou_thrd = 0.3):
     
     return matches, np.array(unmatched_detections), np.array(unmatched_trackers)
 
-def draw_box_label(img, bbox_cv2, box_color=(0, 255, 255), personReID_info={'personID':'unknown'}, show_label=True):
+def draw_box_label(img, bbox_cv2, box_color=(0, 255, 255), personReID_info={'personID':'Unknown'}, show_label=True):
     '''
     Helper funciton for drawing the bounding boxes and the labels
     bbox_cv2 = [left, top, right, bottom]
@@ -158,7 +162,7 @@ def draw_box_label(img, bbox_cv2, box_color=(0, 255, 255), personReID_info={'per
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_size = 0.4
     font_color = (0, 0, 0)
-    left, top, right, bottom = bbox_cv2[1], bbox_cv2[0], bbox_cv2[3], bbox_cv2[2]
+    left, top, right, bottom = bbox_cv2[0], bbox_cv2[1], bbox_cv2[2], bbox_cv2[3]
     
     # Draw the bounding box
     cv2.rectangle(img, (left, top), (right, bottom), box_color, 4)
@@ -180,12 +184,18 @@ def draw_box_label(img, bbox_cv2, box_color=(0, 255, 255), personReID_info={'per
 
 
 def handle_frames(frame):
-	detection_results = api.get_person_bbox(frame, thr=0.4)
+
+	global tracker_list
+	global max_age
+	global min_hits
+	global track_id_list
+
+	detection_results = api.get_person_bbox(frame, thr=0.5)
 	
 	x_box =[]
 	if len(tracker_list) > 0:
 		for trk in tracker_list:
-			x_box.append(trk.box) #should be changed into the right format instead of the .box format
+			x_box.append([(trk.box[0],trk.box[1]),(trk.box[2],trk.box[3])]) #should be changed into the right format instead of the .box format
             
 	matched, unmatched_dets, unmatched_trks = assign_detections_to_trackers(x_box, detection_results, iou_thrd = 0.2)  
 	
@@ -251,8 +261,19 @@ def handle_frames(frame):
 	for trk in tracker_list:
 		if ((trk.hits >= min_hits) and (trk.no_losses <=max_age)):
 			good_tracker_list.append(trk)
-			x_cv2 = trk.box 
-			frame= draw_box_label(frame, x_cv2,personReID_info=trk.personReID_info) # Draw the bounding boxes on the 
+			x_cv2 = trk.box
+			trackerID_str="Unknown Person:"+str(trk.id)
+			if trk.personReID_info['personID'] == "Unknown":
+				frame= draw_box_label(frame, x_cv2,personReID_info={'personID':trackerID_str}) # Draw the bounding boxes for unknown person
+			else:
+				frame= draw_box_label(frame, x_cv2,personReID_info=trk.personReID_info) # Draw the bounding boxes for re-identified person
+	#book keeping
+	deleted_tracks = filter(lambda x: x.no_losses > max_age, tracker_list)
+
+	for trk in deleted_tracks:
+		track_id_list.append(trk.id)
+
+	tracker_list = [x for x in tracker_list if x.no_losses<=max_age]
 
 # 	#the original codes
 # 	for bbox in detection_results:
@@ -293,10 +314,8 @@ def gen_frames():  # generate frame by frame from camera
 	#stream detection
 	#cap = open_cam_onboard(640, 480)
 	#uri = "rtsp://admin:admin@192.168.1.106:554/stream2"
-	global tracker_list
-	global track_id_list
 	
-	uri = "rtsp://admin:edge1234@192.168.1.110:554/cam/realmonitor?channel=1&subtype=1"
+	uri = "rtsp://admin:edge1234@192.168.1.108:554/cam/realmonitor?channel=1&subtype=1"
 	cap = open_cam_rtsp(uri, 640, 480, 200)
 
 
@@ -334,8 +353,8 @@ def gen_frames():  # generate frame by frame from camera
 		t2 = time.time()
 		print("one frame takes {0:.2f}".format(t2-t1))
 		frame_rate_calc = 1 / (t2 - t1)
-		if frame_rate_calc < 15:
-			frame_rate_calc = 2*frame_rate_calc
+		#if frame_rate_calc < 15:
+		#	frame_rate_calc = 2*frame_rate_calc
 
 		cv2.putText(frame, "FPS: {0:.2f}".format(frame_rate_calc), (20, 20),
 					cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0), 2, cv2.LINE_AA)

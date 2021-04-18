@@ -104,7 +104,7 @@ class Compare(object):
 		
 		#top_id = distmat.tolist()[0].index(min(distmat.tolist()[0]))
 		top_id = dist_list.index(min(dist_list))
-		if(min(dist_list) < 0.25):
+		if(min(dist_list) < 0.30):
 			identify_name = origin_name[top_id]
 		else:
 			identify_name = "Unknown"
