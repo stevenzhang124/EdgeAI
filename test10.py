@@ -6,6 +6,12 @@ import time
 import logging
 import subprocess
 import cv2
+
+from collections import deque
+from tracker import Tracker
+import numpy as np
+from sklearn.utils.linear_assignment_ import linear_assignment
+
 from pedestrian_detection_ssdlite import api
 from reid import cam_reid
 from matplotlib import pyplot as plt
@@ -40,6 +46,9 @@ reid_mode = cam_reid.reid_model()
 compare = cam_reid.Compare(model=reid_mode, origin_img="./image/origin")
 origin_f, origin_name = compare.encode_origin_image()
 
+tracker_list =[] # list for trackers
+# list for track ID
+track_id_list= deque(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'])
 
 
 def open_cam_onboard(width, height):
@@ -76,37 +85,206 @@ def open_cam_rtsp(uri, width, height, latency):
                'videoconvert ! appsink').format(uri, latency, width, height)
     return cv2.VideoCapture(gst_str, cv2.CAP_GSTREAMER)
 
+
+def box_iou2(a, b):
+    '''
+    Helper funciton to calculate the ratio between intersection and the union of
+    two boxes a and b
+    a[0], a[1], a[2], a[3] <-> left, up, right, bottom
+    '''
+    
+    w_intsec = np.maximum (0, (np.minimum(a[1][0], b[1][0]) - np.maximum(a[0][0], b[0][0])))
+    h_intsec = np.maximum (0, (np.minimum(a[1][1], b[1][1]) - np.maximum(a[0][1], b[0][1])))
+    s_intsec = w_intsec * h_intsec
+    s_a = (a[1][0] - a[0][0])*(a[1][1] - a[0][1])
+    s_b = (b[1][0] - b[0][0])*(b[1][1] - b[0][1])
+  
+    return float(s_intsec)/(s_a + s_b -s_intsec)
+
+def assign_detections_to_trackers(trackers, detections, iou_thrd = 0.3):
+    '''
+    From current list of trackers and new detections, output matched detections,
+    unmatchted trackers, unmatched detections.
+    '''    
+    
+    IOU_mat= np.zeros((len(trackers),len(detections)),dtype=np.float32)
+    for t,trk in enumerate(trackers):
+        #trk = convert_to_cv2bbox(trk) 
+        for d,det in enumerate(detections):
+         #   det = convert_to_cv2bbox(det)
+            IOU_mat[t,d] = box_iou2(trk,det) 
+    
+    # Produces matches       
+    # Solve the maximizing the sum of IOU assignment problem using the
+    # Hungarian algorithm (also known as Munkres algorithm)
+    
+    matched_idx = linear_assignment(-IOU_mat)        
+
+    unmatched_trackers, unmatched_detections = [], []
+    for t,trk in enumerate(trackers):
+        if(t not in matched_idx[:,0]):
+            unmatched_trackers.append(t)
+
+    for d, det in enumerate(detections):
+        if(d not in matched_idx[:,1]):
+            unmatched_detections.append(d)
+
+    matches = []
+   
+    # For creating trackers we consider any detection with an 
+    # overlap less than iou_thrd to signifiy the existence of 
+    # an untracked object
+    
+    for m in matched_idx:
+        if(IOU_mat[m[0],m[1]]<iou_thrd):
+            unmatched_trackers.append(m[0])
+            unmatched_detections.append(m[1])
+        else:
+            matches.append(m.reshape(1,2))
+    
+    if(len(matches)==0):
+        matches = np.empty((0,2),dtype=int)
+    else:
+        matches = np.concatenate(matches,axis=0)
+    
+    return matches, np.array(unmatched_detections), np.array(unmatched_trackers)
+
+def draw_box_label(img, bbox_cv2, box_color=(0, 255, 255), personReID_info={'personID':'unknown'}, show_label=True):
+    '''
+    Helper funciton for drawing the bounding boxes and the labels
+    bbox_cv2 = [left, top, right, bottom]
+    '''
+    #box_color= (0, 255, 255)
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_size = 0.4
+    font_color = (0, 0, 0)
+    left, top, right, bottom = bbox_cv2[1], bbox_cv2[0], bbox_cv2[3], bbox_cv2[2]
+    
+    # Draw the bounding box
+    cv2.rectangle(img, (left, top), (right, bottom), box_color, 4)
+    
+    if show_label:
+        # Draw a filled box on top of the bounding box (as the background for the labels)
+        cv2.rectangle(img, (left-2, top-30), (right+2, top), box_color, -1, 1)
+        
+        # Output the labels that show the x and y coordinates of the bounding box center.
+        text_ID = 'personID:' + personReID_info['personID']
+        cv2.putText(img,text_ID,(left,top-20), font, font_size, font_color, 1, cv2.LINE_AA)
+        text_x= 'x='+str((left+right)/2)
+        cv2.putText(img,text_x,(left,top-10), font, font_size, font_color, 1, cv2.LINE_AA)
+        text_y= 'y='+str((top+bottom)/2)
+        cv2.putText(img,text_y,(left,top), font, font_size, font_color, 1, cv2.LINE_AA)
+            
+    return img    
+
+
+
 def handle_frames(frame):
 	detection_results = api.get_person_bbox(frame, thr=0.4)
-
-	bounding_boxs = []
-	for bbox in detection_results:
-		logger.info('coordinates: {} {}. '.
-					format(bbox[0], bbox[1]))
-
-		x1 = int(bbox[0][0])
-		y1 = int(bbox[0][1])
-		x2 = int(bbox[1][0])
-		y2 = int(bbox[1][1])
-
-		person = frame[y1:y2, x1:x2, :]
-
-		identify_name, score = compare.run(person, origin_f, origin_name)
-
-		if(identify_name in [ "MJ1", "MJ2", "MJ3", "MJ4", "MJ5"]):
+	
+	x_box =[]
+	if len(tracker_list) > 0:
+		for trk in tracker_list:
+			x_box.append(trk.box) #should be changed into the right format instead of the .box format
+            
+	matched, unmatched_dets, unmatched_trks = assign_detections_to_trackers(x_box, detection_results, iou_thrd = 0.2)  
+	
+	# Deal with matched detections     
+	if matched.size >0:
+		for trk_idx, det_idx in matched:
+			z = detection_results[det_idx]
+			z = np.expand_dims([n for a in z for n in a], axis=0).T
+			tmp_trk= tracker_list[trk_idx]
+			tmp_trk.kalman_filter(z)
+			xx = tmp_trk.x_state.T[0].tolist()
+			xx =[xx[0], xx[2], xx[4], xx[6]]
+			x_box[trk_idx] = xx
+			tmp_trk.box =xx
+			tmp_trk.hits += 1
+			tmp_trk.no_losses = 0
+	
+    # Deal with unmatched detections      
+	if len(unmatched_dets)>0:
+		for idx in unmatched_dets:
+			z = detection_results[idx]
+			x1 = int(z[0][0])
+			y1 = int(z[0][1])
+			x2 = int(z[1][0])
+			y2 = int(z[1][1])
+			person = frame[y1:y2, x1:x2, :]
+			identify_name, score = compare.run(person, origin_f, origin_name)
+			if(identify_name in [ "MJ1", "MJ2", "MJ3", "MJ4", "MJ5"]):
 				identify_name = "Person_1"
-		elif(identify_name in ["QY1", "QY2", "QY3", "QY4", "QY5"]):
-			identify_name = "Person_2"
+			elif(identify_name in ["QY1", "QY2", "QY3", "QY4", "QY5"]):
+				identify_name = "Person_2"
+			print("identify name:{}, score:{}".format(identify_name, round(1-score, 2)))
 			
-		print("identify name:{}, score:{}".format(identify_name, round(1-score, 2)))
-		
-		bounding_boxs.append([(x1,y1), (x2,y2), identify_name+' '+str(round(1-score, 2))])
-		#img = cam_detection.draw_rectangle(img, (x1,y1,x2,y2), identify_name+'  '+str(round((1-score), 2)))
+            #generate a new tracker for the person
+			z = np.expand_dims([n for a in z for n in a], axis=0).T
+			tmp_trk = Tracker() # Create a new tracker
+			x = np.array([[z[0], 0, z[1], 0, z[2], 0, z[3], 0]]).T
+			tmp_trk.x_state = x
+			tmp_trk.predict_only()
+			xx = tmp_trk.x_state
+			xx = xx.T[0].tolist()
+			xx =[xx[0], xx[2], xx[4], xx[6]]
+			tmp_trk.box = xx
+			tmp_trk.id = track_id_list.popleft() # assign an ID for the tracker
+			tmp_trk.personReID_info['personID'] = identify_name #assign the reidentified personID for the tracker
+			tracker_list.append(tmp_trk)
+			x_box.append(xx)
+	
+	    # Deal with unmatched tracks       
+	if len(unmatched_trks)>0:
+		for trk_idx in unmatched_trks:
+			tmp_trk = tracker_list[trk_idx]
+			tmp_trk.no_losses += 1
+			tmp_trk.predict_only()
+			xx = tmp_trk.x_state
+			xx = xx.T[0].tolist()
+			xx =[xx[0], xx[2], xx[4], xx[6]]
+			tmp_trk.box =xx
+			x_box[trk_idx] = xx
+	
+	# The list of tracks to be annotated and draw the figure
+	good_tracker_list =[]
+	for trk in tracker_list:
+		if ((trk.hits >= min_hits) and (trk.no_losses <=max_age)):
+			good_tracker_list.append(trk)
+			x_cv2 = trk.box 
+			frame= draw_box_label(frame, x_cv2,personReID_info=trk.personReID_info) # Draw the bounding boxes on the 
+
+# 	#the original codes
+# 	for bbox in detection_results:
+# 		logger.info('coordinates: {} {}. '.
+# 					format(bbox[0], bbox[1]))
+
+# 		x1 = int(bbox[0][0])
+# 		y1 = int(bbox[0][1])
+# 		x2 = int(bbox[1][0])
+# 		y2 = int(bbox[1][1])
+
+# 		person = frame[y1:y2, x1:x2, :]
+
+# 		identify_name, score = compare.run(person, origin_f, origin_name)
+
+# 		if(identify_name in [ "MJ1", "MJ2", "MJ3", "MJ4", "MJ5"]):
+# 				identify_name = "Person_1"
+# 		elif(identify_name in ["QY1", "QY2", "QY3", "QY4", "QY5"]):
+# 			identify_name = "Person_2"
+# 			
+# 		print("identify name:{}, score:{}".format(identify_name, round(1-score, 2)))
+# 		
+# 		bounding_boxs.append([(x1,y1), (x2,y2), identify_name+' '+str(round(1-score, 2))])
+# 		#img = cam_detection.draw_rectangle(img, (x1,y1,x2,y2), identify_name+'  '+str(round((1-score), 2)))
+        
+        
+    
 			
-	for obj in bounding_boxs:
-		print(obj)
-		cv2.putText(frame, obj[2], (obj[0][0], obj[0][1] - 5), cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 2)
-		frame = cv2.rectangle(frame, obj[0], obj[1], (0, 255, 0), 2)
+# 	for obj in bounding_boxs:
+# 		print(obj)
+# 		cv2.putText(frame, obj[2], (obj[0][0], obj[0][1] - 5), cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 2)
+# 		frame = cv2.rectangle(frame, obj[0], obj[1], (0, 255, 0), 2)
 		
 	return frame
 
@@ -115,8 +293,12 @@ def gen_frames():  # generate frame by frame from camera
 	#stream detection
 	#cap = open_cam_onboard(640, 480)
 	#uri = "rtsp://admin:admin@192.168.1.106:554/stream2"
+	global tracker_list
+	global track_id_list
+	
 	uri = "rtsp://admin:edge1234@192.168.1.110:554/cam/realmonitor?channel=1&subtype=1"
 	cap = open_cam_rtsp(uri, 640, 480, 200)
+
 
 	if not cap.isOpened():
 		sys.exit('Failed to open camera!')
@@ -181,6 +363,7 @@ def gen_frames():  # generate frame by frame from camera
 		# if the `q` key was pressed, break from the loop
 		#if key == ord("q"):
 		#	break
+    
 @app.route('/video_feed')
 def video_feed():
 	#Video streaming route. Put this in the src attribute of an img tag
