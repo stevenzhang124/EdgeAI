@@ -1,11 +1,15 @@
 from utils import box_iou2, assign_detections_to_trackers, draw_box_label
+import cv2
 import struct
 import pickle
+import threading
 from collections import deque
 from tracker import Tracker
 import numpy as np
-from sklearn.utils.linear_assignment_ import linear_assignment
+#from sklearn.utils.linear_assignment_ import linear_assignment
+from scipy.optimize import linear_sum_assignment as linear_assignment
 from reid import cam_reid
+import socket
 
 max_age=5
 min_hits=1
@@ -20,7 +24,8 @@ tracker_list =[] # list for trackers
 # list for track ID
 track_id_list= deque(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'])
 
-def server_inference(detection_results, persons):
+#def server_inference(detection_results, persons):
+def server_inference(detection_results, frame):
 	global tracker_list
 	global max_age
 	global min_hits
@@ -51,8 +56,11 @@ def server_inference(detection_results, persons):
 	if len(unmatched_dets)>0:
 		for idx in unmatched_dets:
 			z = detection_results[idx]
-			
-			person = persons[idx]
+			x1 = int(z[0][0])
+			y1 = int(z[0][1])
+			x2 = int(z[1][0])
+			y2 = int(z[1][1])
+			person = frame[y1:y2, x1:x2, :]
 			identify_name, score = compare.run(person, origin_f, origin_name)
 			if(identify_name in [ "MJ1", "MJ2", "MJ3", "MJ4", "MJ5"]):
 				identify_name = "Person_1"
@@ -109,79 +117,97 @@ def server_inference(detection_results, persons):
 		
 	return frame
 
+def show_frame(frame):
+	cv2.imshow("remote frame", frame)
+	cv2.waitKey(1)
+
 
 def on_new_client(conn):
 	data = b''
 	payload_size = struct.calcsize("L")
 
 	while True:
-        # Reset args list every loop
-        next_task_args_list = []
 
-        # Retrieve number of args for next task
-        while len(data) < payload_size:
-            data += conn.recv(4096)
+		# Reset args list every loop
+		next_task_args_list = []
 
-        packed_num_next_task_args = data[:payload_size]
-        data = data[payload_size:]
-        num_next_task_args = struct.unpack("L", packed_num_next_task_args)[0]
+		# Retrieve number of args for next task
+		while len(data) < payload_size:
+			data += conn.recv(4096)
 
-        # Retrieve the next task index
-        while len(data) < payload_size:
-            data += conn.recv(4096)
+		packed_num_next_task_args = data[:payload_size]
+		data = data[payload_size:]
+		num_next_task_args = struct.unpack("L", packed_num_next_task_args)[0]
 
-        packed_next_task_num = data[:payload_size]
-        data = data[payload_size:]
-        next_task_num = struct.unpack("L", packed_next_task_num)[0]
+		# Retrieve the next task index
+		while len(data) < payload_size:
+			data += conn.recv(4096)
 
-        # Retrieve all args per task
-        for i in range(num_next_task_args):
-            # Retrieve each argument size
-            while len(data) < payload_size:
-                data += conn.recv(4096)
-            packed_argsize = data[:payload_size]
-            data = data[payload_size:]
-            argsize = struct.unpack("L", packed_argsize)[0]
+		packed_next_task_num = data[:payload_size]
+		data = data[payload_size:]
+		next_task_num = struct.unpack("L", packed_next_task_num)[0]
 
-            # Retrieve data based on arg size
-            while len(data) < argsize:
-                data += conn.recv(4096)
+		# Retrieve all args per task
+		for i in range(num_next_task_args):
+			# Retrieve each argument size
+			while len(data) < payload_size:
+			    data += conn.recv(4096)
+			packed_argsize = data[:payload_size]
+			data = data[payload_size:]
+			argsize = struct.unpack("L", packed_argsize)[0]
 
-            next_arg_data = data[:argsize]
-            data = data[argsize:]
-            # Extract next arg
-            next_arg = pickle.loads(next_arg_data)
+			# Retrieve data based on arg size
+			while len(data) < argsize:
+			    data += conn.recv(4096)
 
-            next_task_args_list.append(next_arg)
+			next_arg_data = data[:argsize]
+			data = data[argsize:]
+			# Extract next arg
+			next_arg = pickle.loads(next_arg_data)
 
-        # Set variables and args for running tasks
-        next_task_run_index = next_task_num
-        
-        next_task_args = tuple(next_task_args_list)
+			next_task_args_list.append(next_arg)
 
-        while True:
-            server_inference(*next_task_args)
+		# Set variables and args for running tasks
+		next_task_run_index = next_task_num
+
+		next_task_args = tuple(next_task_args_list)
+
+		
+		frame = server_inference(*next_task_args)
+		show_frame(frame)
 
 
 def main():
+	#init models
+	frame = cv2.imread('example.jpg')
+	detection_results = [[(267, 62), (343, 270)], [(201, 65), (255, 227)], [(187, 64), (228, 169)], [(101, 73), (144, 202)]]
+	frame = server_inference(detection_results, frame)
+	print("init finished")
+
+	#create socket
+	HOST = '192.168.1.111'
+	PORT = 8089
 	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    print('Socket created')
+	print('Socket created')
 
-    s.bind((HOST, PORT))
-    print('Socket bind complete')
-    s.listen(10)
-    print('Socket now listening on port', PORT)
+	s.bind((HOST, PORT))
+	print('Socket bind complete')
+	s.listen(10)
+	print('Socket now listening on port', PORT)
 
-    while True:
-        print('Waiting for client to connect')
+	while True:
+		print('Waiting for client to connect')
 
-        # Receive connection from client
-        client_socket, (client_ip, client_port) = s.accept()
-        print('Received connection from:', client_ip, client_port)
+		# Receive connection from client
+		client_socket, (client_ip, client_port) = s.accept()
+		print('Received connection from:', client_ip, client_port)
 
-        # Start a new thread for the client. Use daemon threads to make exiting the server easier
-        # Set a unique name to display all images
-        t = threading.Thread(target=on_new_client, args=[client_socket], daemon=True)
-        t.setName(str(client_ip) + ':' + str(client_port))
-        t.start()
-        print('Started thread with name:', t.getName())
+		# Start a new thread for the client. Use daemon threads to make exiting the server easier
+		# Set a unique name to display all images
+		t = threading.Thread(target=on_new_client, args=[client_socket], daemon=True)
+		t.setName(str(client_ip) + ':' + str(client_port))
+		t.start()
+		print('Started thread with name:', t.getName())
+
+if __name__ == '__main__':
+	main()

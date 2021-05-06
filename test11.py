@@ -12,6 +12,7 @@ from tracker import Tracker
 import numpy as np
 from sklearn.utils.linear_assignment_ import linear_assignment
 
+
 from pedestrian_detection_ssdlite import api
 from reid import cam_reid
 from matplotlib import pyplot as plt
@@ -396,6 +397,8 @@ def index():
 
 if __name__ == '__main__':
 	img = cv2.imread('example.jpg')
+	detection_test = api.get_person_bbox(img, thr=0.5)
+	print(detection_test)
 	img = handle_frames(img)
 	#plt.imshow(img[:, :, ::-1])
 	print("show frame")
