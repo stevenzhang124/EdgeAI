@@ -93,6 +93,7 @@ def offload_to_peer(next_task_num, next_task_args, client_socket):
 			send_data += arg_size
 			send_data += data
 
+	print(len(send_data))
 	client_socket.sendall(send_data)
 
 
