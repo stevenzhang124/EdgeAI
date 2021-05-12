@@ -47,23 +47,18 @@ def read_video():
 
 def get_frame(cap):
 
-	
-	ret, frame = cap.read()
-	# counter=0
-
-	# while (cap.isOpened()):
-	# 	#t1 = cv2.getTickCount()
-	# 	counter+=1
-	# 	#if counter % 12 !=0:
-	# 	#	print(counter)
-	# 	#	continue
-	# 	t1 = time.time()
-	# 	print ("before read:", time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
-	# 	if counter % 5 != 0:
-	# 		ret, frame = cap.read()
-	# 		continue
-
-	# 	break	
+	counter=0
+	while (cap.isOpened()):
+		#t1 = cv2.getTickCount()
+		counter+=1
+		#if counter % 12 !=0:
+		#	print(counter)
+		#	continue
+		
+		if counter % 5 != 0:
+			ret, frame = cap.read()
+			continue
+		break
 	
 	return frame
 
@@ -123,7 +118,7 @@ def tracking_person(detection_results, frame):
 			y2 = int(z[1][1])
 			person = frame[y1:y2, x1:x2, :]
 			#persons.append(person)
-			persons[i] = person				
+			persons[identity_num] = person				
 			identify_name = "Unknown" + str(identity_num)
 			identity_num += 1
 			
