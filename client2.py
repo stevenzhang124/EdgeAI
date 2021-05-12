@@ -115,7 +115,7 @@ def tracking_person(detection_results, frame):
     # Deal with unmatched detections      
 	if len(unmatched_dets)>0:
 		persons = {}
-		for idx in enumerate(unmatched_dets):
+		for idx in unmatched_dets:
 			z = detection_results[idx]
 			x1 = int(z[0][0])
 			y1 = int(z[0][1])
