@@ -97,10 +97,10 @@ def on_new_client(conn):
 
 def main():
 	#init models
-	frame = cv2.imread('example.jpg')
-	detection_results = [[(267, 62), (343, 270)], [(201, 65), (255, 227)], [(187, 64), (228, 169)], [(101, 73), (144, 202)]]
-	frame = server_inference(detection_results, frame)
-	print("init finished")
+	#frame = cv2.imread('example.jpg')
+	#detection_results = [[(267, 62), (343, 270)], [(201, 65), (255, 227)], [(187, 64), (228, 169)], [(101, 73), (144, 202)]]
+	#frame = server_inference(detection_results, frame)
+	#print("init finished")
 
 	#create socket
 	HOST = '192.168.1.111'
