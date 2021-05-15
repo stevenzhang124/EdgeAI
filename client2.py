@@ -52,7 +52,7 @@ def read_local_video():
 	for i in range(len(files)):
 
 		path = './set00-occ/' + str (i+1) + '.jpg' 
-		ret, frame = vs.imread(path)
+		ret, frame = cv2.imread(path)
 
 	return frame
 
