@@ -250,6 +250,8 @@ if __name__ == '__main__':
 
 	cap = read_video()
 	while True:
+		t1 = time.time()
+
 		frame = get_frame(cap)
 		print("get one frame")
 		if frame is None:
@@ -264,6 +266,16 @@ if __name__ == '__main__':
 		img = tracking_person(detection_results, frame)
 		end = time.time()
 		print("tracking and send consumes {0:.2f}".format(end-start))
+		
+		t2 = time.time()
+
+		print("one frame takes {0:.2f}".format(t2-t1))
+		frame_rate_calc = 1 / (t2 - t1)
+		#if frame_rate_calc < 15:
+		#	frame_rate_calc = 2*frame_rate_calc
+
+		cv2.putText(frame, "FPS: {0:.2f}".format(frame_rate_calc), (20, 20),
+					cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0), 2, cv2.LINE_AA)
 
 		#show video
 		show_frame(img)
