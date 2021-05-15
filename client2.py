@@ -254,11 +254,12 @@ if __name__ == '__main__':
 	print("listen thread starts")
 
 	#cap = read_video()
-	cap = read_local_video()
+	#cap = read_local_video()
 	while True:
 		t1 = time.time()
 
-		frame = get_frame(cap)
+		#frame = get_frame(cap)
+		frame = read_local_video()
 		print("get one frame")
 		if frame is None:
 			break
