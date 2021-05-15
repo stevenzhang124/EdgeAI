@@ -253,7 +253,8 @@ if __name__ == '__main__':
 	t.start()
 	print("listen thread starts")
 
-	cap = read_video()
+	#cap = read_video()
+	cap = read_local_video()
 	while True:
 		t1 = time.time()
 
