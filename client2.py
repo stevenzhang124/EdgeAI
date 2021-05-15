@@ -13,6 +13,7 @@ from collections import deque
 from tracker import Tracker
 import numpy as np
 import threading
+import os
 
 #global variable
 S_IP = '192.168.1.111'
@@ -46,8 +47,12 @@ def read_video():
 	return cap
 
 vs = cv2.VideoCapture("xxxx.mp4")
+files = os.listdir('set00-occ')
 def read_local_video():
-	ret, frame = vs.read()
+	for i in range(len(files)):
+
+		path = './set00-occ/' + str (i+1) + '.jpg' 
+		ret, frame = vs.imread(path)
 
 	return frame
 
