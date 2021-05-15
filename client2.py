@@ -45,6 +45,13 @@ def read_video():
 		sys.exit('Failed to open camera!')
 	return cap
 
+vs = cv2.VideoCapture("xxxx.mp4")
+def read_local_video():
+	ret, frame = vs.read()
+
+	return frame
+
+
 def get_frame(cap):
 
 	counter=0
@@ -245,6 +252,8 @@ if __name__ == '__main__':
 	while True:
 		frame = get_frame(cap)
 		print("get one frame")
+		if frame is None:
+			break
 
 		start = time.time()
 		detection_results, frame = detect_person(frame)
