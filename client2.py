@@ -102,7 +102,7 @@ def tracking_person(detection_results, frame):
 	if len(tracker_list) > 0:
 		for trk in tracker_list:
 			x_box.append([(trk.box[0],trk.box[1]),(trk.box[2],trk.box[3])]) #should be changed into the right format instead of the .box format
-            
+			
 	matched, unmatched_dets, unmatched_trks = assign_detections_to_trackers(x_box, detection_results, iou_thrd = 0.2)  
 	
 	# Deal with matched detections     
@@ -119,9 +119,10 @@ def tracking_person(detection_results, frame):
 			tmp_trk.hits += 1
 			tmp_trk.no_losses = 0
 	
-    # Deal with unmatched detections
-    t1 = time.time()      
+	# Deal with unmatched detections
+
 	if len(unmatched_dets)>0:
+		t1 = time.time()
 		persons = {}
 		for idx in unmatched_dets:
 			z = detection_results[idx]
@@ -135,7 +136,7 @@ def tracking_person(detection_results, frame):
 			identify_name = "Unknown" + str(identity_num)
 			identity_num += 1
 			
-            #generate a new tracker for the person
+			#generate a new tracker for the person
 			z = np.expand_dims([n for a in z for n in a], axis=0).T
 			tmp_trk = Tracker() # Create a new tracker
 			x = np.array([[z[0], 0, z[1], 0, z[2], 0, z[3], 0]]).T
@@ -153,10 +154,10 @@ def tracking_person(detection_results, frame):
 		#offload the Re-ID task
 		arg_send = (persons,)
 		offload_to_peer(2, next_task_args=persons, client_socket=client_socket)
-	t2 = time.time()
-	print("send consumes", (t2-t1))
+		t2 = time.time()
+		print("send consumes", (t2-t1))
 	
-	    # Deal with unmatched tracks       
+		# Deal with unmatched tracks       
 	if len(unmatched_trks)>0:
 		for trk_idx in unmatched_trks:
 			tmp_trk = tracker_list[trk_idx]
