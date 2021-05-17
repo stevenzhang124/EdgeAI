@@ -270,10 +270,10 @@ if __name__ == '__main__':
 	end = time.time()
 	print("detection consumes {0:.2f}".format(end-start))
 
-	start = time.time()
+	start2 = time.time()
 	img = tracking_person(detection_results, frame)
 	end = time.time()
-	print("tracking and send consumes {0:.2f}".format(end-start))
+	print("tracking and send consumes {0:.2f}".format(end-start2))
 	
 	t2 = time.time()
 
