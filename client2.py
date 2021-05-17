@@ -239,7 +239,7 @@ def offload_to_peer(next_task_num, next_task_args, client_socket):
 
 if __name__ == '__main__':
 	# init detection model
-	img = cv2.imread('example.jpg')
+	img = cv2.imread('./test_img/one.jpg')
 	detection_test = api.get_person_bbox(img, thr=0.5)
 	print(detection_test)
 
@@ -255,34 +255,36 @@ if __name__ == '__main__':
 
 	#cap = read_video()
 	#cap = read_local_video()
-	while True:
-		t1 = time.time()
+	#while True:
+		#t1 = time.time()
 
 		#frame = get_frame(cap)
-		frame = read_local_video()
-		print("get one frame")
-		if frame is None:
-			break
+	file = 'edge1.jpg'
+	frame = cv2.imread('./test_img/'+file)
+	print("get one frame")
+	if frame is None:
+		break
 
-		start = time.time()
-		detection_results, frame = detect_person(frame)
-		end = time.time()
-		print("detection consumes {0:.2f}".format(end-start))
+	start = time.time()
+	detection_results, frame = detect_person(frame)
+	end = time.time()
+	print("detection consumes {0:.2f}".format(end-start))
 
-		start = time.time()
-		img = tracking_person(detection_results, frame)
-		end = time.time()
-		print("tracking and send consumes {0:.2f}".format(end-start))
-		
-		t2 = time.time()
+	start = time.time()
+	img = tracking_person(detection_results, frame)
+	end = time.time()
+	print("tracking and send consumes {0:.2f}".format(end-start))
+	
+	t2 = time.time()
 
-		print("one frame takes {0:.2f}".format(t2-t1))
-		frame_rate_calc = 1 / (t2 - t1)
+	print("one frame takes {0:.2f}".format(t2-start))
+	frame_rate_calc = 1 / (t2 - start)
+	print("FPS is {0:.2f}".format(frame_rate_calc))
 		#if frame_rate_calc < 15:
 		#	frame_rate_calc = 2*frame_rate_calc
 
-		cv2.putText(frame, "FPS: {0:.2f}".format(frame_rate_calc), (20, 20),
-					cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0), 2, cv2.LINE_AA)
+		# cv2.putText(frame, "FPS: {0:.2f}".format(frame_rate_calc), (20, 20),
+		# 			cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 0), 2, cv2.LINE_AA)
 
-		#show video
-		show_frame(img)
+		# #show video
+		# show_frame(img)

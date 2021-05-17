@@ -22,6 +22,7 @@ origin_f, origin_name = compare.encode_origin_image()
 
 #def server_inference(detection_results, persons):
 def server_inference(persons):
+	print("get persons", len(persons))
 	identify_names = {}
 	for key, person in persons.items():
 		identify_name, score = compare.run(person, origin_f, origin_name)
