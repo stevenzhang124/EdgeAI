@@ -155,6 +155,7 @@ def tracking_person(detection_results, frame):
 		arg_send = (persons,)
 		offload_to_peer(2, next_task_args=persons, client_socket=client_socket)
 		t2 = time.time()
+		send_time = t2-t1
 		print("send consumes", (t2-t1))
 	
 		# Deal with unmatched tracks       
@@ -189,7 +190,7 @@ def tracking_person(detection_results, frame):
 	tracker_list = [x for x in tracker_list if x.no_losses<=max_age]
 
 		
-	return frame
+	return frame, send_time
 
 def show_frame(frame):
 	cv2.imshow("local frame", frame)
@@ -272,18 +273,23 @@ if __name__ == '__main__':
 	start = time.time()
 	detection_results, frame = detect_person(frame)
 	end = time.time()
-	print("detection consumes {0:.2f}".format(end-start))
+	dt = end-start
+	print("detection consumes", dt)
 
 	start2 = time.time()
-	img = tracking_person(detection_results, frame)
+	img, send_time = tracking_person(detection_results, frame)
 	end = time.time()
 	print("tracking and send consumes {0:.2f}".format(end-start2))
+	track_time = end-start2-send_time
+	print("tracking consumes", track_time)
 	
 	t2 = time.time()
-
-	print("one frame takes {0:.2f}".format(t2-start))
-	frame_rate_calc = 1 / (t2 - start)
+	first_frame_time = t2-start
+	print("one frame takes", first_frame_time)
+	frame_rate_calc = 1 / first_frame_time
 	print("FPS is {0:.2f}".format(frame_rate_calc))
+	fps3 = ((3-first_frame_time)/(dt+track_time) + 1) / 3
+	print(file+ '3 average FPS:', fps3)
 		#if frame_rate_calc < 15:
 		#	frame_rate_calc = 2*frame_rate_calc
 
