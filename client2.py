@@ -119,7 +119,8 @@ def tracking_person(detection_results, frame):
 			tmp_trk.hits += 1
 			tmp_trk.no_losses = 0
 	
-    # Deal with unmatched detections      
+    # Deal with unmatched detections
+    t1 = time.time()      
 	if len(unmatched_dets)>0:
 		persons = {}
 		for idx in unmatched_dets:
@@ -152,6 +153,8 @@ def tracking_person(detection_results, frame):
 		#offload the Re-ID task
 		arg_send = (persons,)
 		offload_to_peer(2, next_task_args=persons, client_socket=client_socket)
+	t2 = time.time()
+	print("send consumes", (t2-t1))
 	
 	    # Deal with unmatched tracks       
 	if len(unmatched_trks)>0:

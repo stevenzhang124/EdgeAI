@@ -11,6 +11,7 @@ import numpy as np
 from scipy.optimize import linear_sum_assignment as linear_assignment
 from reid import cam_reid
 import socket
+import time
 
 
 reid_mode = cam_reid.reid_model()
@@ -39,6 +40,8 @@ def server_inference(persons):
 
 
 def on_new_client(conn):
+	t1 = time.time()
+
 	data = b''
 	payload_size = struct.calcsize("L")
 
@@ -94,6 +97,9 @@ def on_new_client(conn):
 		sendData = str(identify_names)
 
 		conn.sendall(sendData.encode())
+
+		t2 = time.time()
+		print("Re-ID consumes", (t2-t1))
 
 
 def main():
