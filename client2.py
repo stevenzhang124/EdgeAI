@@ -262,8 +262,8 @@ if __name__ == '__main__':
 	file = 'edge1.jpg'
 	frame = cv2.imread('./test_img/'+file)
 	print("get one frame")
-	if frame is None:
-		break
+	# if frame is None:
+	# 	break
 
 	start = time.time()
 	detection_results, frame = detect_person(frame)
