@@ -91,15 +91,17 @@ def on_new_client(conn):
 
 		next_task_args = tuple(next_task_args_list)
 
-		
+		st = time.time()
 		identify_names = server_inference(*next_task_args)
+		et = time.time()
+		print("Re-ID consumes", (et-st))
 
 		sendData = str(identify_names)
 
 		conn.sendall(sendData.encode())
 
 		t2 = time.time()
-		print("Re-ID consumes", (t2-t1))
+		print("remote consumes", (t2-t1))
 
 
 def main():
