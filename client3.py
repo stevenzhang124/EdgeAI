@@ -16,7 +16,7 @@ import threading
 import os
 
 #global variable
-S_IP = '192.168.1.111'
+S_IP = 'localhost'
 S_port = 8089
 
 identity_num = 0
